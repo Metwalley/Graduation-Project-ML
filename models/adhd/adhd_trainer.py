@@ -2,97 +2,145 @@ import pandas as pd
 import joblib
 import warnings
 from pathlib import Path
-from sklearn.model_selection import train_test_split, GridSearchCV, StratifiedKFold
-from sklearn.metrics import accuracy_score, classification_report, roc_auc_score
+from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.metrics import accuracy_score, roc_auc_score, classification_report
 from xgboost import XGBClassifier
 
+# Suppress warnings for cleaner output
 warnings.filterwarnings("ignore")
 
-# ====== إعدادات المسارات ======
-CURRENT_DIR = Path(__file__).resolve().parent 
-PROJECT_ROOT = CURRENT_DIR.parent.parent       
+# ==========================================
+# 1. PATH CONFIGURATION
+# ==========================================
+CURRENT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = CURRENT_DIR.parent.parent
 DATA_PATH = PROJECT_ROOT / "data" / "processed" / "ADHD_Merged_Data.csv"
+
+# Output Files
 MODEL_OUT = CURRENT_DIR / "adhd_xgb_model_optimized.joblib"
+FEATURES_OUT = CURRENT_DIR / "adhd_features.joblib"
 
-def optimize_adhd_model():
-    print("🚀 Starting Hyperparameter Tuning (Grid Search)...")
-    print("☕ Go make some coffee, this might take a few minutes...")
-
-    # تحميل الداتا
-    df = pd.read_csv(DATA_PATH)
+def train_adhd_model():
+    print("🚀 Starting ADHD Training (Fact-Based Normalization)...")
     
-    feature_cols = [
-        "Conduct_Problems", "Total_Difficulties", "Emotional_Problems", 
-        "Externalizing_Score", "Impact_Score", "Hyperactivity_Score", 
-        "Internalizing_Score", "Peer_Problems", "Prosocial_Score",
-        "APQ_Corporal_Punishment", "APQ_Inconsistent_Discipline", 
-        "APQ_Involvement", "APQ_Other_Discipline", 
-        "APQ_Poor_Monitoring", "APQ_Positive_Parenting",
-        "Age", "Sex"
-    ]
+    # ==========================================
+    # 2. LOAD DATA
+    # ==========================================
+    try:
+        df = pd.read_csv(DATA_PATH)
+        print(f"📂 Data Loaded Successfully: {len(df)} rows")
+    except FileNotFoundError:
+        print(f"❌ Error: Data not found at {DATA_PATH}")
+        return
+    
+    # ==========================================
+    # 3. FACT-BASED NORMALIZATION
+    # ==========================================
+    # Max values observed in the dataset (HBN) to normalize inputs to [0.0 - 1.0]
+    facts_max = {
+        "Hyperactivity_Score": 10.0,
+        "Conduct_Problems": 10.0,
+        "Emotional_Problems": 10.0,
+        "Peer_Problems": 9.0,
+        "Prosocial_Score": 10.0,
+        "Total_Difficulties": 32.0,
+        "Externalizing_Score": 20.0,
+        "Internalizing_Score": 16.0,
+        "Impact_Score": 10.0,
+        "APQ_Involvement": 50.0,
+        "APQ_Positive_Parenting": 30.0,
+        "APQ_Poor_Monitoring": 37.0,
+        "APQ_Inconsistent_Discipline": 28.0,
+        "APQ_Corporal_Punishment": 12.0,
+        "APQ_Other_Discipline": 27.0
+    }
+    
+    feature_cols = list(facts_max.keys()) + ["Age", "Sex"]
     target_col = "Class"
     
-    X = df[feature_cols]
+    # Apply Normalization
+    X = df[feature_cols].copy()
     y = df[target_col]
 
-    # التقسيم
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+    print("⚖️ Normalizing features...")
+    for col, max_val in facts_max.items():
+        if col in X.columns:
+            # Clip outliers to max_val, then divide to get 0-1 range
+            X[col] = X[col].clip(upper=max_val) / max_val
 
-    # حساب الوزن
+    # Save Feature Names for API Consistency
+    joblib.dump(list(X.columns), FEATURES_OUT)
+    print(f"📝 Features list saved to {FEATURES_OUT}")
+
+    # ==========================================
+    # 4. TRAIN/TEST SPLIT
+    # ==========================================
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42, stratify=y
+    )
+
+    # Calculate scale_pos_weight for imbalance handling
     scale_pos_weight = (y_train == 0).sum() / (y_train == 1).sum()
 
-    # ====== إعداد الشبكة (The Grid) ======
-    # هنجرب كل الاحتمالات دي
-    param_grid = {
-        'max_depth': [3, 4, 5, 6],
-        'learning_rate': [0.01, 0.05, 0.1],
-        'n_estimators': [100, 300, 500],
-        'subsample': [0.7, 0.8, 0.9],
-        'colsample_bytree': [0.6, 0.8],
-        'gamma': [0, 0.1, 0.2] # معامل لمنع الـ Overfitting
-    }
-
+    # ==========================================
+    # 5. MODEL TRAINING (XGBoost + GridSearch)
+    # ==========================================
+    print("🔄 Tuning XGBoost Hyperparameters...")
+    
     xgb = XGBClassifier(
         objective='binary:logistic',
         scale_pos_weight=scale_pos_weight,
+        eval_metric="auc",
         use_label_encoder=False,
-        eval_metric='auc',
         n_jobs=-1,
         random_state=42
     )
 
-    # البحث عن الأفضل (Grid Search)
-    grid_search = GridSearchCV(
+    # Hyperparameter Grid
+    param_grid = {
+        'n_estimators': [100, 200, 300],
+        'learning_rate': [0.01, 0.05, 0.1],
+        'max_depth': [3, 4, 5],
+        'subsample': [0.8],
+        'colsample_bytree': [0.8]
+    }
+
+    grid = GridSearchCV(
         estimator=xgb,
         param_grid=param_grid,
-        scoring='roc_auc', # بنركز على الـ AUC أهم من الـ Accuracy
+        scoring='roc_auc',
         cv=3,
-        verbose=1,
-        n_jobs=-1
+        n_jobs=-1,
+        verbose=1
     )
 
-    grid_search.fit(X_train, y_train)
+    grid.fit(X_train, y_train)
+    
+    best_model = grid.best_estimator_
+    print(f"✅ Best Params: {grid.best_params_}")
 
-    print("\n✅ Best Parameters Found:")
-    print(grid_search.best_params_)
-
-    # التقييم بالموديل المحسن
-    best_model = grid_search.best_estimator_
+    # ==========================================
+    # 6. EVALUATION
+    # ==========================================
     y_pred = best_model.predict(X_test)
     y_prob = best_model.predict_proba(X_test)[:, 1]
-
+    
     acc = accuracy_score(y_test, y_pred)
-    roc_auc = roc_auc_score(y_test, y_prob)
+    roc = roc_auc_score(y_test, y_prob)
 
     print("\n" + "="*30)
-    print(f"🏆 Optimized Results:")
+    print(f"🏆 Final Results (Normalized Model):")
     print(f"   - Accuracy: {acc*100:.2f}%")
-    print(f"   - ROC AUC:  {roc_auc:.4f}")
+    print(f"   - ROC AUC:  {roc:.4f}")
     print("="*30)
+    print("\nClassification Report:")
+    print(classification_report(y_test, y_pred))
 
-    # حفظ الأفضل
+    # ==========================================
+    # 7. SAVE MODEL
+    # ==========================================
     joblib.dump(best_model, MODEL_OUT)
-    print(f"💾 Best Model Saved -> {MODEL_OUT}")
+    print(f"💾 Model saved successfully to: {MODEL_OUT}")
 
 if __name__ == "__main__":
-    optimize_adhd_model()
+    train_adhd_model()
