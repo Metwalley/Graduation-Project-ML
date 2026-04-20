@@ -53,6 +53,21 @@ Graduation-Project-ML/
 
 ### شرط وحيد: Docker Desktop مثبت وشغال
 
+### خطوة لازم تتعملها مرة واحدة بس قبل أول تشغيل
+
+الـ `chatbot_service` محتاج ملف `.env` عشان يشتغل. الملف ده مش موجود في الريبو (عشان فيه secrets) — بس فيه `.env.example` جاهز. عمله بسرعة:
+
+```bash
+cp chatbot_service/.env.example chatbot_service/.env
+```
+
+أو على Windows:
+```powershell
+Copy-Item chatbot_service\.env.example chatbot_service\.env
+```
+
+> مش محتاج تغير فيه أي حاجة — الـ defaults بتشتغل مباشرة مع Docker.
+
 ```bash
 cd Graduation-Project-ML
 docker-compose up --build
