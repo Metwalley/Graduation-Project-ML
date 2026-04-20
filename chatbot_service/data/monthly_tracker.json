@@ -1,0 +1,320 @@
+{
+  "ADHD": {
+    "title": "تقييم التقدم الشهري - ADHD",
+    "scoring_logic": "Sum of values. Lower score indicates improvement.",
+    "interpretation": {
+      "improved": "Score decreased by 2+ points",
+      "stable": "Score change within +/- 1 point",
+      "declined": "Score increased by 2+ points"
+    },
+    "questions": [
+      {
+        "id": "m_adhd_1",
+        "text": "هل لاحظت تحسناً في قدرة طفلك على التركيز وإتمام المهام مقارنة بالشهر الماضي؟",
+        "type": "scale",
+        "options": [
+          {
+            "text": "أفضل بكثير",
+            "value": 0
+          },
+          {
+            "text": "نفس الحال",
+            "value": 1
+          },
+          {
+            "text": "أسوأ",
+            "value": 2
+          }
+        ]
+      },
+      {
+        "id": "m_adhd_2",
+        "text": "هل لاحظت تحسناً في مستويات التململ أو الاندفاع لدى طفلك مقارنة بالشهر الماضي؟",
+        "type": "scale",
+        "options": [
+          {
+            "text": "أفضل بكثير",
+            "value": 0
+          },
+          {
+            "text": "نفس الحال",
+            "value": 1
+          },
+          {
+            "text": "أسوأ",
+            "value": 2
+          }
+        ]
+      },
+      {
+        "id": "m_adhd_3",
+        "text": "هل لاحظت تحسناً في قدرة طفلك على تنظيم مهامه وتخطيط يومه مقارنة بالشهر الماضي؟",
+        "type": "scale",
+        "options": [
+          {
+            "text": "أفضل بكثير",
+            "value": 0
+          },
+          {
+            "text": "نفس الحال",
+            "value": 1
+          },
+          {
+            "text": "أسوأ",
+            "value": 2
+          }
+        ]
+      },
+      {
+        "id": "m_adhd_4",
+        "text": "هل لاحظت تحسناً في قدرة طفلك على بدء المهام وتقليل التسويف مقارنة بالشهر الماضي؟",
+        "type": "scale",
+        "options": [
+          {
+            "text": "أفضل بكثير",
+            "value": 0
+          },
+          {
+            "text": "نفس الحال",
+            "value": 1
+          },
+          {
+            "text": "أسوأ",
+            "value": 2
+          }
+        ]
+      },
+      {
+        "id": "m_adhd_5",
+        "text": "هل لاحظت تحسناً في قدرة طفلك على تنظيم مشاعره والتحكم بردود أفعاله مقارنة بالشهر الماضي؟",
+        "type": "scale",
+        "options": [
+          {
+            "text": "أفضل بكثير",
+            "value": 0
+          },
+          {
+            "text": "نفس الحال",
+            "value": 1
+          },
+          {
+            "text": "أسوأ",
+            "value": 2
+          }
+        ]
+      }
+    ]
+  },
+  "Autism": {
+    "title": "تقييم التقدم الشهري - Autism",
+    "scoring_logic": "Sum of values. Lower score indicates improvement.",
+    "interpretation": {
+      "improved": "Score decreased by 2+ points",
+      "stable": "Score change within +/- 1 point",
+      "declined": "Score increased by 2+ points"
+    },
+    "questions": [
+      {
+        "id": "m_autism_1",
+        "text": "هل لاحظت تحسناً في التفاعلات الاجتماعية لطفلك مقارنة بالشهر الماضي؟",
+        "type": "scale",
+        "options": [
+          {
+            "text": "أفضل بكثير",
+            "value": 0
+          },
+          {
+            "text": "نفس الحال",
+            "value": 1
+          },
+          {
+            "text": "أسوأ",
+            "value": 2
+          }
+        ]
+      },
+      {
+        "id": "m_autism_2",
+        "text": "هل لاحظت تحسناً في مهارات التواصل (اللفظي وغير اللفظي) لدى طفلك مقارنة بالشهر الماضي؟",
+        "type": "scale",
+        "options": [
+          {
+            "text": "أفضل بكثير",
+            "value": 0
+          },
+          {
+            "text": "نفس الحال",
+            "value": 1
+          },
+          {
+            "text": "أسوأ",
+            "value": 2
+          }
+        ]
+      },
+      {
+        "id": "m_autism_3",
+        "text": "هل لاحظت تحسناً في السلوكيات المتكررة أو الاهتمامات المقيدة لدى طفلك مقارنة بالشهر الماضي؟",
+        "type": "scale",
+        "options": [
+          {
+            "text": "أفضل بكثير",
+            "value": 0
+          },
+          {
+            "text": "نفس الحال",
+            "value": 1
+          },
+          {
+            "text": "أسوأ",
+            "value": 2
+          }
+        ]
+      },
+      {
+        "id": "m_autism_4",
+        "text": "هل لاحظت تحسناً في استجابة طفلك للمحفزات الحسية (الأصوات، الأضواء، اللمس) مقارنة بالشهر الماضي؟",
+        "type": "scale",
+        "options": [
+          {
+            "text": "أفضل بكثير",
+            "value": 0
+          },
+          {
+            "text": "نفس الحال",
+            "value": 1
+          },
+          {
+            "text": "أسوأ",
+            "value": 2
+          }
+        ]
+      },
+      {
+        "id": "m_autism_5",
+        "text": "هل لاحظت تحسناً في قدرة طفلك على تنظيم عواطفه وإدارة التحديات السلوكية مقارنة بالشهر الماضي؟",
+        "type": "scale",
+        "options": [
+          {
+            "text": "أفضل بكثير",
+            "value": 0
+          },
+          {
+            "text": "نفس الحال",
+            "value": 1
+          },
+          {
+            "text": "أسوأ",
+            "value": 2
+          }
+        ]
+      }
+    ]
+  },
+  "Dyslexia": {
+    "title": "تقييم التقدم الشهري - Dyslexia",
+    "scoring_logic": "Sum of values. Lower score indicates improvement.",
+    "interpretation": {
+      "improved": "Score decreased by 2+ points",
+      "stable": "Score change within +/- 1 point",
+      "declined": "Score increased by 2+ points"
+    },
+    "questions": [
+      {
+        "id": "m_dyslexia_1",
+        "text": "هل لاحظت تحسناً في قدرة طفلك على القراءة مقارنة بالشهر الماضي؟",
+        "type": "scale",
+        "options": [
+          {
+            "text": "أفضل بكثير",
+            "value": 0
+          },
+          {
+            "text": "نفس الحال",
+            "value": 1
+          },
+          {
+            "text": "أسوأ",
+            "value": 2
+          }
+        ]
+      },
+      {
+        "id": "m_dyslexia_2",
+        "text": "هل لاحظت تحسناً في مهارات طفلك في الكتابة والإملاء مقارنة بالشهر الماضي؟",
+        "type": "scale",
+        "options": [
+          {
+            "text": "أفضل بكثير",
+            "value": 0
+          },
+          {
+            "text": "نفس الحال",
+            "value": 1
+          },
+          {
+            "text": "أسوأ",
+            "value": 2
+          }
+        ]
+      },
+      {
+        "id": "m_dyslexia_3",
+        "text": "هل لاحظت تحسناً في قدرة طفلك على فهم النصوص المكتوبة مقارنة بالشهر الماضي؟",
+        "type": "scale",
+        "options": [
+          {
+            "text": "أفضل بكثير",
+            "value": 0
+          },
+          {
+            "text": "نفس الحال",
+            "value": 1
+          },
+          {
+            "text": "أسوأ",
+            "value": 2
+          }
+        ]
+      },
+      {
+        "id": "m_dyslexia_4",
+        "text": "هل لاحظت تحسناً في قدرة طفلك على تنظيم الأفكار والمهام مقارنة بالشهر الماضي؟",
+        "type": "scale",
+        "options": [
+          {
+            "text": "أفضل بكثير",
+            "value": 0
+          },
+          {
+            "text": "نفس الحال",
+            "value": 1
+          },
+          {
+            "text": "أسوأ",
+            "value": 2
+          }
+        ]
+      },
+      {
+        "id": "m_dyslexia_5",
+        "text": "هل لاحظت تحسناً في ثقة طفلك بنفسه عند القراءة أو الكتابة مقارنة بالشهر الماضي؟",
+        "type": "scale",
+        "options": [
+          {
+            "text": "أفضل بكثير",
+            "value": 0
+          },
+          {
+            "text": "نفس الحال",
+            "value": 1
+          },
+          {
+            "text": "أسوأ",
+            "value": 2
+          }
+        ]
+      }
+    ]
+  }
+}

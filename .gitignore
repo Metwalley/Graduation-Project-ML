@@ -1,15 +1,30 @@
-# تجاهل ملفات الداتا الكبيرة
-data/raw/widsdatathon2025/
+# ── Large Data Files ──────────────────────────────────────────
 data/raw/
 data/processed/
 
-# تجاهل ملفات النظام والكاش
+# ── Python Cache ───────────────────────────────────────────────
 __pycache__/
 *.pyc
-.DS_Store
-.env
-venv/
-.vscode/
+*.pyo
+.pytest_cache/
 
-# ملحوظة: سيبنا ملفات الـ joblib عشان محتاجينها في الـ Render
-# إلا لو حجم الموديل الواحد معدي 100 ميجا (وده غالباً محصلش معاك)
+# ── Environment & Secrets ──────────────────────────────────────
+.env
+*.env
+venv/
+.venv/
+
+# ── OS & Editor ────────────────────────────────────────────────
+.DS_Store
+.vscode/
+*.swp
+Thumbs.db
+
+# ── Large Binary Files ─────────────────────────────────────────
+*.exe
+*.rar
+*.zip
+
+# ── Ollama Local Cache (المستخدم عنده locally) ────────────────
+# ملفات الـ .joblib مش متجاهلة — محتاجينها في الـ deployment
+# أكبر موديل عندنا ~4MB (dyslexia RF) — في حدود GitHub
