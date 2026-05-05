@@ -7,38 +7,95 @@
 
 ---
 
-## إيه اللي عملته؟
+## الصورة الكاملة — إيه اللي عملته؟
 
-عملت **API واحد موحد** على بورت `8000`. انتوا (الباك إند) بتكلموا عنوان واحد بس وخلاص.
+عملت **API واحد موحد** على بورت `8000` بيعمل 4 حاجات:
 
 | الوظيفة | الـ Endpoint |
 |---|---|
-| التشخيص الأولي | `POST /predict` |
-| التقييم الشهري | `POST /monthly-tracker` |
-| أسئلة الشهر | `GET /monthly-tracker/questions/{disorder}` |
-| الشات بوت | `POST /chat` |
-| فحص الحالة | `GET /health` |
+| التشخيص الأولي للطفل | `POST /predict` |
+| التقييم الشهري (حساب التقدم) | `POST /monthly-tracker` |
+| جيب أسئلة الشهر | `GET /monthly-tracker/questions/{disorder}` |
+| الشات بوت التعليمي | `POST /chat` |
+| فحص حالة الـ API | `GET /health` |
 
-كل ده على: `http://localhost:8000`
+**إزاي بيشتغل مع بعض:**
+
+```
+أهل الطفل (Flutter App)
+         ↓
+Spring Boot Backend
+         ↓
+AI Engine — port 8000 (ده اللي عملته أنا)
+```
+
+Flutter مش بتكلم الـ AI Engine مباشرة — بتكلم Spring Boot، وSpring Boot بيكلم الـ AI Engine.
 
 ---
 
-## تشغيل بـ Docker — ده الأسهل والمضمون (دقيقتين بالظبط)
+## إيه اللي محتاجينه
 
-### شرط وحيد: Docker Desktop مثبت وشغال
+**متطلب وحيد:** Docker Desktop مثبت وشغال على الجهاز.
+حمّله من: https://www.docker.com/products/docker-desktop/
 
-```bash
-# 1. جيب الصورة (مرة واحدة، ~400MB)
-docker pull metwalley/ai-engine:latest
+---
 
-# 2. شغّله
-docker run -e GROQ_API_KEY=اطلبها_من_عبدالرحمن -p 8000:8000 metwalley/ai-engine:latest
+## الملفات اللي هتاخدوها من الريبو
+
+```
+Graduation-Project-ML/
+│
+├── docker-compose.yml      ← ده اللي بيشغّل كل حاجة (أهم ملف)
+│
+├── .env                    ← هتعملوه انتوا (مش موجود في الريبو — فيه secrets)
+│
+├── seed_data/
+│   ├── articles.json       ← مقالات للعرض في الـ App
+│   ├── exercises.json      ← تمارين، ازرعوها في MySQL
+│   └── monthly_tracker.json← أسئلة التقييم الشهري
+│
+└── docs/
+    └── TEAM_HANDOFF.md     ← الملف اللي بتقراه دلوقتي
 ```
 
+مش محتاجين: `api/` ولا `chatbot_service/` ولا `models/` ولا `notebooks/` — دي كلها جوه الـ Docker Image بالفعل.
+
+---
+
+## تشغيل الـ API — خطوتين بس
+
+### الخطوة 1 — اعمل ملف `.env` في نفس فولدر `docker-compose.yml`
+
+الملف اسمه `.env` (بالنقطة في الأول) وفيه سطر واحد بس:
+
+```
+GROQ_API_KEY=اطلب الـ key من عبدالرحمن
+```
+
+**شكل الملفات بعد ما تعمل الـ .env:**
+```
+Graduation-Project-ML/
+├── docker-compose.yml   ✅ موجود من الريبو
+├── .env                 ✅ انت عملته دلوقتي
+└── seed_data/           ✅ موجود من الريبو
+```
+
+### الخطوة 2 — شغّل الـ API
+
+```bash
+docker-compose up
+```
+
+أول مرة بس هياخد دقيقتين يحمّل الـ Image (~400MB).
+من بعدين هيجي في ثواني.
+
 ### تأكد إنه شغال:
+
+افتح المتصفح:
 ```
 http://localhost:8000/health
 ```
+
 لازم يطلع:
 ```json
 {
@@ -48,30 +105,62 @@ http://localhost:8000/health
 }
 ```
 
-> **الـ GROQ_API_KEY:** دي API key للشات بوت. اطلبها من عبدالرحمن، هو عنده الـ key.
+لو طلع كده — كل حاجة شغالة. خلاص.
 
 ---
 
-## تشغيل يدوي — لو مش عايز Docker
+## Swagger UI — اختبار الـ Endpoints من المتصفح
 
-محتاج Python 3.9+ وبعدين:
-
-```bash
-cd api
-pip install -r requirements.txt
-
-# على Windows:
-$env:GROQ_API_KEY="اطلبها من عبدالرحمن"
-uvicorn main:app --port 8000
-
-# على Mac/Linux:
-GROQ_API_KEY="اطلبها من عبدالرحمن" uvicorn main:app --port 8000
+```
+http://localhost:8000/docs
 ```
 
-استنى لحد ما يطلع:
+من هنا تقدروا تجربوا كل endpoint مباشرة من المتصفح بدون Postman.
+
+---
+
+## تكامل الـ API مع Spring Boot
+
+### الإعداد
+
+في `application.properties` أو `application.yml`:
+```properties
+ai.engine.url=http://localhost:8000
 ```
-✅ All ML models loaded successfully.
-✅ Monthly tracker data loaded (3 disorders).
+
+### مثال — التشخيص الأولي:
+
+```java
+@Service
+public class AiEngineService {
+
+    @Value("${ai.engine.url}")
+    private String aiEngineUrl;
+
+    private final RestTemplate restTemplate = new RestTemplate();
+
+    public DiagnosisResult predict(PredictRequest request) {
+        String url = aiEngineUrl + "/predict";
+        ResponseEntity<DiagnosisResult> response =
+            restTemplate.postForEntity(url, request, DiagnosisResult.class);
+        return response.getBody();
+    }
+
+    public ChatResult chat(String userMessage) {
+        String url = aiEngineUrl + "/chat";
+        Map<String, String> body = Map.of("text", userMessage);
+        ResponseEntity<ChatResult> response =
+            restTemplate.postForEntity(url, body, ChatResult.class);
+        return response.getBody();
+    }
+
+    public MonthlyResult monthlyTracker(MonthlyRequest request) {
+        String url = aiEngineUrl + "/monthly-tracker";
+        ResponseEntity<MonthlyResult> response =
+            restTemplate.postForEntity(url, request, MonthlyResult.class);
+        return response.getBody();
+    }
+}
 ```
 
 ---
@@ -82,6 +171,7 @@ GROQ_API_KEY="اطلبها من عبدالرحمن" uvicorn main:app --port 8000
 
 ### 1. التشخيص الأولي — `POST /predict`
 
+**Request:**
 ```json
 {
   "test_type": "adhd",
@@ -136,14 +226,14 @@ GET http://localhost:8000/monthly-tracker/questions/adhd
       "options": [
         { "text": "أفضل بكثير", "value": 0 },
         { "text": "نفس الحال",  "value": 1 },
-        { "text": "أسوأ",        "value": 2 }
+        { "text": "أسوأ",       "value": 2 }
       ]
     }
   ]
 }
 ```
 
-Flutter يجيب الأسئلة دي ويعرضها. بعد ما الأب يجاوب، بعت لـ `POST /monthly-tracker`.
+Flutter يجيب الأسئلة دي ويعرضها. بعد ما الأب يجاوب، يبعتها لـ `POST /monthly-tracker`.
 
 ---
 
@@ -151,17 +241,17 @@ Flutter يجيب الأسئلة دي ويعرضها. بعد ما الأب يجا
 
 **المسار الكامل:**
 ```
-أب يجاوب الأسئلة في الـ App
+الأب يجاوب الأسئلة في الـ App (Flutter)
     ↓
-Flutter يبعت للـ Backend
+Flutter يبعت للـ Spring Boot
     ↓
-Backend يجيب آخر score من DB للطفل ده
+Spring Boot يجيب آخر score من DB للطفل ده
     ↓
-Backend يبعت للـ AI Engine
+Spring Boot يبعت للـ AI Engine
     ↓
 AI Engine يحسب التقدم ويرجع النتيجة
     ↓
-Backend يحفظ الـ score الجديد في DB
+Spring Boot يحفظ الـ score الجديد في DB
     ↓
 Flutter يعرض النتيجة
 ```
@@ -181,11 +271,11 @@ Flutter يعرض النتيجة
 }
 ```
 
-> **`previous_score`:** آخر `current_score` عندكم في الـ DB. لو أول شهر → ابعت `null`.
+> **`previous_score`:** آخر `current_score` عندكم في الـ DB للطفل ده. لو أول شهر → ابعت `null`.
 
-> **مهم:** لازم تبعتوا 5 إجابات بالظبط، أقل من كده هيرجع 422.
+> **مهم:** لازم تبعتوا 5 إجابات بالظبط، مش أقل ومش أكتر — هيرجع 422 لو غلط.
 
-**قيم `value`:** `0` = أفضل | `1` = نفس | `2` = أسوأ
+**قيم `value`:** `0` = أفضل | `1` = نفس الحال | `2` = أسوأ
 
 **Response:**
 ```json
@@ -202,27 +292,36 @@ Flutter يعرض النتيجة
 
 احفظ `current_score` + `disorder` + `assessed_at` في الـ DB.
 
+**قيم `trend`:** `improved` | `stable` | `declined` | `baseline`
+
 ---
 
 ### 4. الشات بوت — `POST /chat`
 
+**Request:**
 ```json
 {
   "text": "ابني مش بيركز في المذاكرة، اعمل معاه إيه؟"
 }
 ```
 
-**Response:**
+**Response — سؤال عادي:**
 ```json
 {
-  "response": "يمكنك اتباع الخطوات التالية...",
+  "response": "يمكنك اتباع الخطوات التالية للمساعدة في تحسين تركيز طفلك...",
   "is_safe": true
 }
 ```
 
-لو السؤال فيه طلب دواء أو تشخيص → `is_safe: false` + رسالة رفض مهذبة.
+**Response — لو السؤال فيه طلب دواء:**
+```json
+{
+  "response": "أنا مساعد تعليمي فقط ولا أستطيع تقديم وصفات طبية. يرجى التواصل مع طبيب متخصص.",
+  "is_safe": false
+}
+```
 
-الشات بوت بياخد **1-3 ثواني** للرد. بيشتغل على Groq API (محتاج انترنت).
+الشات بوت بياخد **1-3 ثواني** للرد — بيشتغل على Groq API (محتاج انترنت).
 
 ---
 
@@ -244,7 +343,7 @@ CREATE TABLE monthly_scores (
   assessed_at DATE NOT NULL
 );
 
--- المقالات (seed من articles.json)
+-- المقالات (seed من seed_data/articles.json)
 CREATE TABLE articles (
   id        INT PRIMARY KEY,
   category  VARCHAR(20),
@@ -254,7 +353,7 @@ CREATE TABLE articles (
   read_time VARCHAR(20)
 );
 
--- التمارين (seed من exercises.json)
+-- التمارين (seed من seed_data/exercises.json)
 CREATE TABLE exercises (
   id               INT PRIMARY KEY,
   category         VARCHAR(20),
@@ -267,7 +366,7 @@ CREATE TABLE exercises (
 );
 ```
 
-### Endpoints مطلوبة:
+### Endpoints مطلوبة من Spring Boot:
 
 ```
 GET /api/articles?disorder=ADHD       → قائمة مقالات
@@ -280,7 +379,7 @@ GET /api/children/{id}/monthly-scores → تاريخ التقدم للـ Line Ch
 
 ## الـ Line Chart — إزاي Flutter يرسمه
 
-Backend يرجع:
+Spring Boot يرجع:
 ```json
 [
   { "month": "2025-01", "progress_percentage": 20.0 },
@@ -294,12 +393,14 @@ Flutter بيرسم `progress_percentage` على المحور Y، `month` على 
 
 ---
 
-## عرض المشروع على الموبايل
+## عرض المشروع على الموبايل يوم المناقشة
+
+مش محتاجين Cloud. الحل:
 
 ```
 التليفون + اللابتوب على نفس الـ WiFi
-شغّل Docker على اللابتوب
-Flutter يتصل بـ IP اللابتوب بدل localhost
+شغّل docker-compose up على اللابتوب
+Spring Boot يتصل بـ IP اللابتوب بدل localhost
 ```
 
 **عرف الـ IP:**
@@ -307,26 +408,19 @@ Flutter يتصل بـ IP اللابتوب بدل localhost
 ipconfig | findstr "IPv4"
 ```
 
-**في الـ Spring Boot:** غيّر `AI_ENGINE_URL` من `localhost` للـ IP.
+في `application.properties`:
+```properties
+ai.engine.url=http://192.168.1.x:8000
+```
 
 ---
 
 ## يوم المناقشة ⚠️
 
-> - **قبل يوم:** شغّل `docker run` وتأكد إن `/health` شغال.
-> - **يوم المناقشة:** `docker run` عادي — هيجي في ثواني.
+> - **قبل يوم:** شغّل `docker-compose up` مرة وتأكد إن `/health` بيرجع صح.
+> - **يوم المناقشة:** `docker-compose up` وهيجي في ثواني — الـ Image محملة.
 > - **⚠️ الشات بوت محتاج انترنت** — تأكد في الكلية إن في WiFi أو هوت سبوت.
 > - **التشخيص والـ Monthly Tracker شغالين offline** — مش محتاجين انترنت.
-
----
-
-## Swagger UI
-
-```
-http://localhost:8000/docs
-```
-
-من هنا تقدروا تجربوا كل endpoint من المتصفح بدون Postman.
 
 ---
 
