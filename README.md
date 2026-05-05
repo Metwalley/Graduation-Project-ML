@@ -8,34 +8,41 @@
 
 ## 🧠 ما الذي يفعله هذا النظام؟
 
-يوفر هذا النظام **ثلاث قدرات أساسية** عبر API موحد:
+يوفر هذا النظام **أربع قدرات أساسية** عبر API موحد على بورت واحد:
 
 | الميزة | الوصف | الدقة |
 |---|---|---|
 | **تشخيص التوحد** | نموذج XGBoost يحلل نتائج استبيان Q-Chat-10 | ~99% |
 | **تشخيص ADHD** | نموذج XGBoost مع Proportional Normalization | ~76% |
 | **تشخيص عسر القراءة** | نموذج Random Forest | — |
-| **شات بوت تعليمي** | RAG محلي (Llama 3.2 + FAISS) بدون انترنت | — |
+| **شات بوت تعليمي** | Groq API — Llama 3.3 70B — استجابة في 1-3 ثوانٍ | — |
 | **متتبع التقدم الشهري** | تسجيل وقياس تحسن الطفل شهرياً | — |
 
 ---
 
-## 🚀 تشغيل النظام
+## 🚀 تشغيل النظام (دقيقتين)
 
 ### المتطلبات
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) مثبت وشغال
 
-### التشغيل
-```bash
-docker-compose up --build
+### الخطوة 1 — اعمل ملف `.env` في نفس فولدر `docker-compose.yml`
+
+```
+GROQ_API_KEY=اطلبها من عبدالرحمن
 ```
 
-> ⚠️ **أول تشغيل فقط:** يحمّل موديل Llama 3.2 (~2GB). بعد كده هو محفوظ ومش هيحمّل تاني.
+### الخطوة 2 — شغّل
+
+```bash
+docker-compose up
+```
+
+> أول مرة بس هياخد دقيقة يحمّل الـ Image (~400MB). من بعدين هيجي في ثواني.
 
 ### التحقق من التشغيل
 ```
-http://localhost:8000/health   → AI Engine status
-http://localhost:8000/docs     → Swagger UI (توثيق تفاعلي لكل الـ endpoints)
+http://localhost:8000/health   → يرجع: models_loaded + chatbot_ready: true
+http://localhost:8000/docs     → Swagger UI تقدر تجرب منه كل endpoint
 ```
 
 ---
@@ -46,13 +53,30 @@ http://localhost:8000/docs     → Swagger UI (توثيق تفاعلي لكل ا
 
 | Method | Endpoint | الوظيفة |
 |---|---|---|
-| `POST` | `/predict` | التشخيص الأولي |
+| `POST` | `/predict` | التشخيص الأولي (autism / adhd / dyslexia) |
 | `POST` | `/monthly-tracker` | حساب التقدم الشهري |
 | `GET` | `/monthly-tracker/questions/{disorder}` | جلب أسئلة التقييم |
-| `POST` | `/chat` | الشات بوت التعليمي |
+| `POST` | `/chat` | الشات بوت التعليمي (عربي) |
 | `GET` | `/health` | فحص حالة الخدمة |
 
-**التوثيق الكامل مع أمثلة:** راجع [`docs/TEAM_HANDOFF.md`](docs/TEAM_HANDOFF.md)
+**التوثيق الكامل مع أمثلة وكود Spring Boot:** [`docs/TEAM_HANDOFF.md`](docs/TEAM_HANDOFF.md)
+
+---
+
+## 🏗️ المعمارية
+
+```
+Flutter App
+    ↓
+Spring Boot Backend
+    ↓
+AI Engine — port 8000   (Docker Image: metwalley/ai-engine:latest)
+    ├── POST /predict        → ML models (.joblib — locally in image)
+    ├── POST /monthly-tracker → scoring engine
+    └── POST /chat           → Groq API (Llama 3.3 70B)
+```
+
+Flutter لا تتصل بالـ AI Engine مباشرة — تتصل بـ Spring Boot، وSpring Boot يتصل بالـ AI Engine.
 
 ---
 
@@ -65,47 +89,45 @@ Graduation-Project-ML/
 │   ├── main.py                 ← كل الـ endpoints (predict + tracker + chat)
 │   ├── requirements.txt
 │   ├── Dockerfile
-│   └── ml_models/              ← ملفات الموديلات (.joblib) — يقرأها الـ API مباشرة
-│
-├── chatbot_service/            ← RAG Chatbot (داخلي، يُشغّل عبر docker-compose)
-│   ├── main.py
-│   ├── rag_engine.py
-│   ├── ollama_client.py
-│   ├── knowledge_base.py
-│   ├── safety_filter.py
-│   ├── response_formatter.py
-│   ├── config.py
-│   └── Dockerfile
-│
-├── models/                     ← Training workspace (للـ ML engineer فقط)
-│   ├── adhd/                   ← trainer + joblib files
-│   ├── autism/                 ← trainer + joblib files
-│   └── dyslexia/               ← trainer + joblib files
+│   └── ml_models/              ← ملفات الموديلات (.joblib)
 │
 ├── seed_data/                  ← البيانات المشتركة
-│   ├── articles.json           ← مقالات: للشات بوت (RAG) + للعرض في الـ App
-│   ├── exercises.json          ← تمارين وأنشطة للـ Backend يزرعها في MySQL
+│   ├── articles.json           ← مقالات للعرض في الـ App
+│   ├── exercises.json          ← تمارين وأنشطة — ازرعوها في MySQL
 │   └── monthly_tracker.json    ← أسئلة التقييم الشهري
 │
+├── models/                     ← Training workspace (للـ ML engineer فقط)
+│   ├── adhd/
+│   ├── autism/
+│   └── dyslexia/
+│
 ├── notebooks/                  ← Jupyter notebooks للتدريب والتحليل
-├── docs/                       ← كل التوثيق
-│   ├── TEAM_HANDOFF.md         ← دليل التكامل للتيم كله ← ابدأ بده
-│   ├── PROJECT_BIBLE.md        ← المرجع التقني الشامل
-│   ├── ARCHITECTURE.md         ← شرح معماري النظام
+│
+├── docs/
+│   ├── TEAM_HANDOFF.md         ← ← ← ابدأ بده (دليل التكامل الكامل)
 │   └── ...
 │
-└── docker-compose.yml          ← يشغّل كل حاجة بأمر واحد
+├── docker-compose.yml          ← يشغّل كل حاجة بأمر واحد
+└── .env                        ← انت بتعمله (فيه GROQ_API_KEY)
 ```
 
 ---
 
 ## 🔗 التكامل مع باقي الفريق
 
-**للـ Backend (Spring Boot):** كل الـ endpoints موثقة في `docs/TEAM_HANDOFF.md`.
+**للـ Backend (Spring Boot):** كل الـ endpoints موثقة في [`docs/TEAM_HANDOFF.md`](docs/TEAM_HANDOFF.md) مع أمثلة كود Java جاهزة.
 
-**للـ Flutter:** راجع `docs/TEAM_HANDOFF.md` — قسم "كيف تتعاملوا مع كل Endpoint".
+**للـ Flutter:** التطبيق يتصل بـ Spring Boot فقط — Spring Boot هو اللي يتصل بالـ AI Engine.
 
 **للـ ML Engineer:** الموديلات والـ trainers في `models/`، الـ API جاهز في `api/`.
+
+---
+
+## ⚠️ يوم المناقشة
+
+- التشخيص والـ Monthly Tracker **يشتغلان offline** — لا يحتاجان انترنت
+- الشات بوت **يحتاج انترنت** — تأكد من WiFi أو هوت سبوت
+- شغّل `docker-compose up` قبل الحفل — الـ API يكون جاهز في ثواني
 
 ---
 
