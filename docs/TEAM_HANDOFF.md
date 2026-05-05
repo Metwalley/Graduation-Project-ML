@@ -1,5 +1,5 @@
 # الـ AI Engine — دليل التشغيل والتكامل
-### كتبه: عبدالرحمن | آخر تحديث: أبريل 2026
+### كتبه: عبدالرحمن | آخر تحديث: مايو 2026
 
 ---
 
@@ -9,7 +9,7 @@
 
 ## إيه اللي عملته؟
 
-عملت **API واحد موحد** على بورت `8000` بدل ما كل service ليها بورت لوحدها. يعني انتوا (الباك إند) بتكلموا عنوان واحد بس وخلاص.
+عملت **API واحد موحد** على بورت `8000`. انتوا (الباك إند) بتكلموا عنوان واحد بس وخلاص.
 
 | الوظيفة | الـ Endpoint |
 |---|---|
@@ -19,110 +19,60 @@
 | الشات بوت | `POST /chat` |
 | فحص الحالة | `GET /health` |
 
-كل ده على: `http://ai-engine:8000`
+كل ده على: `http://localhost:8000`
 
 ---
 
-## الملفات اللي هتاخدوها
-
-```
-Graduation-Project-ML/
-│
-├── api/                    ← ده الأهم، فيه كل الـ endpoints
-│   ├── main.py
-│   ├── requirements.txt
-│   ├── Dockerfile
-│   └── ml_models/          ← ملفات الموديلات، ملمسوش
-│
-├── chatbot_service/        ← الشات بوت، Docker بيشغّله تلقائياً
-│
-├── seed_data/
-│   ├── articles.json       ← مقالات للشات بوت + للعرض في الـ App
-│   ├── exercises.json      ← ازرعوها في MySQL
-│   └── monthly_tracker.json← أسئلة التقييم الشهري
-│
-├── docker-compose.yml      ← ده اللي بيشغّل كل حاجة
-└── docs/TEAM_HANDOFF.md    ← الملف اللي بتقراه دلوقتي
-```
-
-مش محتاجين: `models/` ولا `notebooks/` ولا `data/`
-
----
-
-## تشغيل بـ Docker — ده الأسهل والمضمون
+## تشغيل بـ Docker — ده الأسهل والمضمون (دقيقتين بالظبط)
 
 ### شرط وحيد: Docker Desktop مثبت وشغال
 
-### خطوة لازم تتعملها مرة واحدة بس قبل أول تشغيل
-
-الـ `chatbot_service` محتاج ملف `.env` عشان يشتغل. الملف ده مش موجود في الريبو (عشان فيه secrets) — بس فيه `.env.example` جاهز. عمله بسرعة:
-
 ```bash
-cp chatbot_service/.env.example chatbot_service/.env
+# 1. جيب الصورة (مرة واحدة، ~400MB)
+docker pull metwalley/ai-engine:latest
+
+# 2. شغّله
+docker run -e GROQ_API_KEY=اطلبها_من_عبدالرحمن -p 8000:8000 metwalley/ai-engine:latest
 ```
-
-أو على Windows:
-```powershell
-Copy-Item chatbot_service\.env.example chatbot_service\.env
-```
-
-> مش محتاج تغير فيه أي حاجة — الـ defaults بتشتغل مباشرة مع Docker.
-
-```bash
-cd Graduation-Project-ML
-docker-compose up --build
-```
-
-### ⚠️ أول تشغيل بس
-بيحمّل Llama (~2GB). هياخد وقت. من بعدين هيجي بسرعة.
 
 ### تأكد إنه شغال:
 ```
 http://localhost:8000/health
 ```
-لازم يطلع: `"models_loaded": ["autism", "adhd", "dyslexia"]`
+لازم يطلع:
+```json
+{
+  "status": "online",
+  "models_loaded": ["autism", "adhd", "dyslexia"],
+  "chatbot_ready": true
+}
+```
+
+> **الـ GROQ_API_KEY:** دي API key للشات بوت. اطلبها من عبدالرحمن، هو عنده الـ key.
 
 ---
 
-## تشغيل يدوي — لو Docker مش شغال معاك
+## تشغيل يدوي — لو مش عايز Docker
 
-محتاج **3 terminals منفصلة بالترتيب ده:**
+محتاج Python 3.9+ وبعدين:
 
-**Terminal 1 — Ollama:**
-```powershell
-ollama serve
-```
-تأكد إن الموديل موجود:
-```powershell
-ollama list
-# لو مش موجود:
-ollama pull llama3.2:3b
-```
-
-**Terminal 2 — الشات بوت (لازم يشتغل على بورت 8001):**
-```powershell
-cd chatbot_service
-$env:TF_ENABLE_ONEDNN_OPTS="0"
-uvicorn main:app --port 8001
-```
-استنى لحد ما يطلع: `RAG Engine ready!`
-
-**Terminal 3 — الـ AI Engine:**
-```powershell
+```bash
 cd api
-$env:CHATBOT_SERVICE_URL="http://localhost:8001"
+pip install -r requirements.txt
+
+# على Windows:
+$env:GROQ_API_KEY="اطلبها من عبدالرحمن"
 uvicorn main:app --port 8000
+
+# على Mac/Linux:
+GROQ_API_KEY="اطلبها من عبدالرحمن" uvicorn main:app --port 8000
 ```
-استنى لحد ما يطلع: `✅ All ML models loaded successfully.`
 
-### ⚠️ مشاكل شائعة وحلها
-
-| المشكلة | السبب | الحل |
-|---|---|---|
-| `/chat` بيرجع `503` | نسيت تعمل `CHATBOT_SERVICE_URL` | ابعته قبل تشغيل الـ API (Terminal 3) |
-| `paging file too small` | RAM ممتلئة | اقفل terminals قديمة وابدأ من أول |
-| `Port already in use` | في service تاني على نفس البورت | `netstat -ano` تلاقي الـ PID |
-| الشات بوت بيأخد وقت | الموديل بيشتغل على CPU | طبيعي، 5-15 ثانية |
+استنى لحد ما يطلع:
+```
+✅ All ML models loaded successfully.
+✅ Monthly tracker data loaded (3 disorders).
+```
 
 ---
 
@@ -169,7 +119,7 @@ uvicorn main:app --port 8000
 ### 2. أسئلة التقييم الشهري — `GET /monthly-tracker/questions/{disorder}`
 
 ```
-GET http://ai-engine:8000/monthly-tracker/questions/adhd
+GET http://localhost:8000/monthly-tracker/questions/adhd
 ```
 
 **قيم `disorder`:** `adhd` | `autism` | `dyslexia`
@@ -272,7 +222,7 @@ Flutter يعرض النتيجة
 
 لو السؤال فيه طلب دواء أو تشخيص → `is_safe: false` + رسالة رفض مهذبة.
 
-الشات بوت بياخد 5-15 ثانية للرد — طبيعي.
+الشات بوت بياخد **1-3 ثواني** للرد. بيشتغل على Groq API (محتاج انترنت).
 
 ---
 
@@ -346,11 +296,9 @@ Flutter بيرسم `progress_percentage` على المحور Y، `month` على 
 
 ## عرض المشروع على الموبايل
 
-مش محتاجين Cloud للـ showcase. الحل الأبسط:
-
 ```
 التليفون + اللابتوب على نفس الـ WiFi
-شغّل docker-compose up على اللابتوب
+شغّل Docker على اللابتوب
 Flutter يتصل بـ IP اللابتوب بدل localhost
 ```
 
@@ -360,9 +308,15 @@ ipconfig | findstr "IPv4"
 ```
 
 **في الـ Spring Boot:** غيّر `AI_ENGINE_URL` من `localhost` للـ IP.
-**في Flutter:** غيّر الـ base URL للـ IP.
 
-**الـ architecture بتاعي متوافق 100% مع أي Linux server** — لو قررتوا تعلوا cloud في أي وقت، `docker-compose up` وخلاص.
+---
+
+## يوم المناقشة ⚠️
+
+> - **قبل يوم:** شغّل `docker run` وتأكد إن `/health` شغال.
+> - **يوم المناقشة:** `docker run` عادي — هيجي في ثواني.
+> - **⚠️ الشات بوت محتاج انترنت** — تأكد في الكلية إن في WiFi أو هوت سبوت.
+> - **التشخيص والـ Monthly Tracker شغالين offline** — مش محتاجين انترنت.
 
 ---
 
@@ -376,23 +330,14 @@ http://localhost:8000/docs
 
 ---
 
-## يوم المناقشة ⚠️
-
-> - **قبل يوم كامل:** شغّل `docker-compose up` وخلّيه يحمّل الموديل.
-> - **اتأكد** إن `/health` بيرجع كل الـ models.
-> - **يوم المناقشة:** `docker-compose up` عادي — الموديل في الـ cache.
-> - **الشات بوت شغال offline بالكامل** — مش محتاج انترنت يوم العرض.
-
----
-
 ## ملخص المهام
 
 | المهمة | المسؤول | الحالة |
 |---|---|---|
 | موديلات التشخيص (3 disorders) | Abdo | ✅ |
-| الشات بوت RAG + Ollama | Abdo | ✅ |
+| الشات بوت (Groq API) | Abdo | ✅ |
 | التقييم الشهري (API + أسئلة) | Abdo | ✅ |
-| Docker Compose موحد | Abdo | ✅ |
+| Docker Image على Docker Hub | Abdo | ✅ |
 | حفظ نتايج التشخيص في DB | Backend | 🔄 |
 | Seed المقالات والتمارين في MySQL | Backend | 🔄 |
 | `/articles` و `/exercises` endpoints | Backend | 🔄 |
