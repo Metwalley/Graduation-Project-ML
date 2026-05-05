@@ -1,30 +1,17 @@
-version: '3.8'
-
-# ============================================================
-#  Child Psychological Assessment System — Unified Stack
-#  Services:
-#    1. ai-engine      → Unified FastAPI (port 8000): /predict, /monthly-tracker, /chat
-#    2. chatbot-service → RAG chatbot (internal only, proxied via ai-engine /chat)
-#    3. ollama          → Local LLM server (internal only, used by chatbot-service)
-# ============================================================
-
 services:
 
-  # ── 1. UNIFIED AI ENGINE ──────────────────────────────────
+  # ── UNIFIED AI ENGINE (the only public service) ────────────────────────────
   ai-engine:
-    build:
-      context: ./api
-      dockerfile: Dockerfile
+    image: metwalley/ai-engine:latest   # pull from Docker Hub
     container_name: ai-engine
     ports:
       - "8000:8000"
     environment:
-      - CHATBOT_SERVICE_URL=http://chatbot-service:8001
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - GROQ_MODEL=llama-3.3-70b-versatile
       - TRACKER_JSON_PATH=/seed_data/monthly_tracker.json
     volumes:
-      - ./seed_data:/seed_data:ro       # monthly_tracker.json, articles.json, exercises.json
-    depends_on:
-      - chatbot-service
+      - ./seed_data:/seed_data:ro
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -32,42 +19,3 @@ services:
       timeout: 10s
       retries: 5
       start_period: 20s
-
-  # ── 2. RAG CHATBOT SERVICE (Internal) ─────────────────────
-  chatbot-service:
-    build:
-      context: ./chatbot_service
-      dockerfile: Dockerfile
-    container_name: chatbot-service
-    expose:
-      - "8001"                          # Internal only — NOT exposed to host
-    environment:
-      - OLLAMA_BASE_URL=http://ollama:11434
-      - OLLAMA_MODEL=llama3.2:3b
-      - KNOWLEDGE_BASE_PATH=/seed_data/articles.json
-      - TEMPERATURE=0.1
-      - APP_MODE=api                    # Run as API, not Streamlit UI
-    volumes:
-      - ./seed_data:/seed_data:ro
-    depends_on:
-      - ollama
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 60s                 # Give Ollama time to be ready
-
-  # ── 3. OLLAMA (Local LLM — Internal) ──────────────────────
-  ollama:
-    image: ollama/ollama:latest
-    container_name: ollama
-    expose:
-      - "11434"                         # Internal only
-    volumes:
-      - ollama_model_cache:/root/.ollama  # Models persist across restarts (no re-download)
-    restart: unless-stopped
-
-volumes:
-  ollama_model_cache:                   # Named volume: survives container restarts

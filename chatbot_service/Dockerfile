@@ -1,34 +1,27 @@
-# Dockerfile for Chatbot Service
-# Optimized to keep image size reasonable
-# The model will be downloaded at runtime to volume, not baked into image
-
 FROM python:3.9-slim
 
-# Set working directory
 WORKDIR /app
 
-# Install system dependencies (curl is needed for Ollama checks)
+# System dependencies
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
+# Install CPU-only PyTorch FIRST — prevents pip from pulling 3GB of CUDA packages
+RUN pip install --no-cache-dir \
+    torch==2.2.0+cpu \
+    --index-url https://download.pytorch.org/whl/cpu
+
+# Install remaining Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy source code
 COPY . .
 
-# Expose API port
-EXPOSE 8001
-# Expose Streamlit port (optional, for demo)
-EXPOSE 8501
+# Fix line endings on start.sh (in case of Windows CRLF)
+RUN sed -i 's/\r$//' start.sh && chmod +x start.sh
 
-# Scripts to run on container start
-# We will use a startup script to ensure Ollama is ready before app starts
-COPY start.sh .
-RUN chmod +x start.sh
-
-# Environment variables
 ENV PYTHONUNBUFFERED=1
 
-# Command to run the application
+EXPOSE 8001
+
 CMD ["./start.sh"]

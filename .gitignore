@@ -25,6 +25,13 @@ Thumbs.db
 *.rar
 *.zip
 
+# ── Private documents ──────────────────────────────────────────
+Collective_Doc_For_Graduation_Day/
+
+# ── Dev-only test scripts (may contain API keys) ───────────────
+api/test_api.py
+api/test_all.py
+
 # ── Ollama Local Cache (المستخدم عنده locally) ────────────────
 # ملفات الـ .joblib مش متجاهلة — محتاجينها في الـ deployment
 # أكبر موديل عندنا ~4MB (dyslexia RF) — في حدود GitHub

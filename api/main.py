@@ -4,10 +4,14 @@ import numpy as np
 import httpx
 import json
 import os
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
+
+# Load .env file (local dev). In Docker, env vars are passed via docker-compose.
+load_dotenv()
 
 # ==========================================
 # 1. APP CONFIGURATION & MODEL LOADING
@@ -21,10 +25,10 @@ Handles **three core responsibilities** so the Spring Boot backend only needs on
 
 1. **`POST /predict`** — Initial diagnostic assessment (Autism, ADHD, Dyslexia) using trained ML models.
 2. **`POST /monthly-tracker`** — Monthly progress scoring. Calculates trend (improved/stable/declined) vs. previous month.
-3. **`POST /chat`** — Educational RAG chatbot, proxied internally to the Ollama service.
+3. **`POST /chat`** — Educational chatbot powered by **Groq + Llama 3.3 70B**. Responds in Arabic only.
 4. **`GET /health`** — Service health check.
     """,
-    version="2.0.0"
+    version="2.1.0"
 )
 
 # Allow all origins for development/demo — Spring Boot and Flutter can call freely
@@ -44,8 +48,30 @@ AUTISM_FEATURES_PATH = os.path.join(MODELS_DIR, "autism_features.joblib")
 ADHD_MODEL_PATH      = os.path.join(MODELS_DIR, "adhd_xgb_model_optimized.joblib")
 DYSLEXIA_MODEL_PATH  = os.path.join(MODELS_DIR, "dyslexia_rf_model.joblib")
 
-# Chatbot service URL — resolved via Docker internal network name or env override
-CHATBOT_URL = os.getenv("CHATBOT_SERVICE_URL", "http://chatbot-service:8001")
+# ── Groq API Configuration ────────────────────────────────────────────────────
+GROQ_API_KEY  = os.getenv("GROQ_API_KEY", "")
+GROQ_MODEL    = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+GROQ_BASE_URL = "https://api.groq.com/openai/v1/chat/completions"
+
+ARABIC_SYSTEM_PROMPT = """\
+أنت مساعد تعليمي متخصص في دعم أولياء أمور الأطفال الذين يعانون من اضطرابات النمو \
+مثل التوحد (ASD) وفرط الحركة وتشتت الانتباه (ADHD) وعسر القراءة (Dyslexia).
+
+مهمتك: تقديم معلومات تعليمية وداعمة باللغة العربية الفصحى البسيطة فقط.
+
+القواعد الصارمة:
+1. أجب دائماً باللغة العربية فقط — لا إنجليزية إطلاقاً.
+2. لا تقدم تشخيصات طبية أو وصفات دوائية أو جرعات.
+3. قدم معلومات تعليمية وعملية فقط تساعد الوالدين.
+4. إذا طُلب منك تشخيص أو دواء، اعتذر بلطف وأحل لأخصائي.
+5. ركز على الدعم الأبوي والأنشطة والاستراتيجيات العملية.
+"""
+
+# Keywords that trigger safety block (medical requests)
+BLOCKED_KEYWORDS = [
+    "دواء", "أدوية", "جرعة", "جرعات", "وصفة طبية", "وصف دواء",
+    "علاج طبي", "عقار", "كبسولة", "حبة دواء", "ميليجرام",
+]
 
 # Monthly tracker questions JSON — loaded once at startup
 TRACKER_JSON_PATH = os.getenv(
@@ -407,11 +433,12 @@ def process_monthly_tracker(req: MonthlyTrackerRequest) -> MonthlyTrackerRespons
 def health_check():
     """Service health check. Returns which models are currently loaded."""
     return {
-        "status":        "online",
-        "version":       "2.0.0",
-        "models_loaded": [k for k in models if not k.endswith("_features")],
+        "status":         "online",
+        "version":        "2.1.0",
+        "models_loaded":  [k for k in models if not k.endswith("_features")],
         "tracker_loaded": bool(tracker_data),
-        "chatbot_url":   CHATBOT_URL,
+        "chatbot_engine": f"Groq / {GROQ_MODEL}",
+        "chatbot_ready":  bool(GROQ_API_KEY),
     }
 
 
@@ -489,38 +516,51 @@ def get_tracker_questions(disorder: str):
 @app.post("/chat", response_model=ChatResponse, tags=["3. Educational Chatbot"])
 async def chat_endpoint(req: ChatRequest):
     """
-    **Educational Chatbot (RAG-powered)**
+    **Educational Chatbot (Groq-powered)**
 
-    Proxies the request to the internal RAG chatbot service (Ollama + Llama 3.2).
-    Spring Boot does not need to know the chatbot's internal address.
+    Calls Groq's API directly with Llama 3.3 70B.
+    No local Ollama or chatbot-service needed.
 
-    - Refuses medical advice and prescriptions (built-in safety filter).
-    - Responds in Arabic with educational information only.
+    - Built-in Arabic safety filter blocks medical/prescription requests.
+    - Always responds in Arabic with educational information only.
     """
+    if not GROQ_API_KEY:
+        raise HTTPException(status_code=503, detail="GROQ_API_KEY not configured.")
+
+    # ── Safety filter ─────────────────────────────────────────────────────────
+    if any(kw in req.text for kw in BLOCKED_KEYWORDS):
+        return ChatResponse(
+            response="أنا مساعد تعليمي فقط ولا أستطيع تقديم وصفات أو نصائح دوائية. "
+                     "للاستشارات الطبية، يرجى التواصل مع طبيب أو أخصائي متخصص.",
+            is_safe=False,
+        )
+
+    # ── Groq API call ─────────────────────────────────────────────────────────
     try:
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            response = await client.post(
-                f"{CHATBOT_URL}/chat",
-                # Chatbot schema uses 'question', not 'text'
-                json={"question": req.text},
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(
+                GROQ_BASE_URL,
+                headers={
+                    "Authorization": f"Bearer {GROQ_API_KEY}",
+                    "Content-Type":  "application/json",
+                },
+                json={
+                    "model": GROQ_MODEL,
+                    "messages": [
+                        {"role": "system", "content": ARABIC_SYSTEM_PROMPT},
+                        {"role": "user",   "content": req.text},
+                    ],
+                    "temperature": 0.3,
+                    "max_tokens":  600,
+                },
             )
-            response.raise_for_status()
-            data = response.json()
-            # Chatbot returns 'answer'; blocked=True means unsafe query
-            is_safe = not data.get("blocked", False)
-            return ChatResponse(
-                response=data.get("answer", ""),
-                is_safe=is_safe,
-            )
-    except httpx.ConnectError:
-        raise HTTPException(
-            status_code=503,
-            detail="Chatbot service is currently unavailable. Ensure the chatbot container is running."
-        )
+            resp.raise_for_status()
+            answer = resp.json()["choices"][0]["message"]["content"]
+            return ChatResponse(response=answer, is_safe=True)
+
     except httpx.TimeoutException:
-        raise HTTPException(
-            status_code=504,
-            detail="Chatbot service timed out. The model may still be loading."
-        )
+        raise HTTPException(status_code=504, detail="Groq API timed out. Try again.")
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(status_code=502, detail=f"Groq API error: {e.response.text}")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Chatbot proxy error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Chat error: {str(e)}")
