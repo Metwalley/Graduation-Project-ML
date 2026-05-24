@@ -100,6 +100,14 @@ def load_models():
             "APQ_Other_Discipline", "Age", "Sex"
         ]
         models["dyslexia"]        = joblib.load(DYSLEXIA_MODEL_PATH)
+        
+        # Patch older scikit-learn models (e.g. Dyslexia Random Forest) 
+        # to ensure compatibility with newer scikit-learn versions
+        if hasattr(models["dyslexia"], "estimators_"):
+            for est in models["dyslexia"].estimators_:
+                if not hasattr(est, "monotonic_cst"):
+                    est.monotonic_cst = None
+                    
         print("✅ All ML models loaded successfully.")
     except FileNotFoundError as e:
         print(f"❌ Model file not found: {e}")
@@ -198,13 +206,13 @@ def process_autism(data: AssessmentRequest):
     input_vector.append(1 if data.family_asd.lower() == "yes" else 0)
 
     df   = pd.DataFrame([input_vector], columns=models["autism_features"])
-    pred = models["autism"].predict(df)[0]
-    prob = models["autism"].predict_proba(df)[0][1]
+    pred = int(models["autism"].predict(df)[0])
+    prob = float(models["autism"].predict_proba(df)[0][1])
 
     return {
         "test_type":  "Autism",
         "result":     "High Risk (ASD)" if pred == 1 else "Low Risk (Normal)",
-        "risk_score": round(prob * 100, 2),
+        "risk_score": float(round(prob * 100, 2)),
     }
 
 
@@ -263,16 +271,16 @@ def process_adhd(data: AssessmentRequest):
     }
 
     df   = pd.DataFrame([input_dict], columns=models["adhd_features"])
-    pred = models["adhd"].predict(df)[0]
-    prob = models["adhd"].predict_proba(df)[0][1]
+    pred = int(models["adhd"].predict(df)[0])
+    prob = float(models["adhd"].predict_proba(df)[0][1])
 
     return {
         "test_type":  "ADHD",
         "result":     "ADHD Likely" if pred == 1 else "No ADHD Likely",
-        "risk_score": round(prob * 100, 2),
+        "risk_score": float(round(prob * 100, 2)),
         "details": {
-            "hyperactivity_level":    round(norm_hyper * 100, 1),
-            "total_difficulty_level": round(norm_total * 100, 1),
+            "hyperactivity_level":    float(round(norm_hyper * 100, 1)),
+            "total_difficulty_level": float(round(norm_total * 100, 1)),
         },
     }
 
@@ -305,7 +313,7 @@ def process_dyslexia(data: AssessmentRequest):
         [[score_lang, score_mem, score_speed, score_visual, score_audio, score_survey]],
         columns=["Language_vocab", "Memory", "Speed", "Visual_discrimination", "Audio_Discrimination", "Survey_Score"],
     )
-    pred = models["dyslexia"].predict(df)[0]
+    pred = int(models["dyslexia"].predict(df)[0])
 
     result_map = {0: "High Risk (Dyslexia)", 1: "Moderate Risk", 2: "Low Risk (Normal)"}
 
@@ -313,8 +321,8 @@ def process_dyslexia(data: AssessmentRequest):
         "test_type": "Dyslexia",
         "result":    result_map.get(pred, "Unknown"),
         "details": {
-            "language_score": round(score_lang, 2),
-            "memory_score":   round(score_mem, 2),
+            "language_score": float(round(score_lang, 2)),
+            "memory_score":   float(round(score_mem, 2)),
         },
     }
 
